@@ -2,7 +2,7 @@
   "name": "Yuki Cards — Gestionnaire",
   "short_name": "Yuki Cards",
   "description": "Gestionnaire de trading de cartes Pokémon et Yu-Gi-Oh!",
-  "start_url": "/",
+  "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
   "theme_color": "#0f0f13",

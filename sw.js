@@ -3,13 +3,13 @@
 // Permet une utilisation complète hors ligne.
 // Firebase gère lui-même la file d'attente des modifications offline.
 
-const CACHE_NAME = 'yuki-cards-v5';
+const CACHE_NAME = 'yuki-cards-v6';
 
 const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.png',
+  './',
+  './index.html',
+  './manifest.json',
+  './favicon.png',
   'https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js',
   'https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js',
   'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
