@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0f0f13" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="Yuki Cards" />
+  <title>Yuki Cards — Gestionnaire</title>
+
+  <!-- Favicon & PWA icons -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- SheetJS (Excel export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --surface2: #22222f;
+      --border: #2e2e40;
+      --accent: #7c5cfc;
+      --accent-light: #a084fd;
+      --green: #2ecc71;
+      --red: #e74c3c;
+      --text: #e8e6f0;
+      --text-muted: #8a87a0;
+      --gold: #f0c040;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { overflow-x: hidden; max-width: 100vw; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; max-width: 100vw; }
+
+    /* ── HEADER ── */
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 16px; display: flex; align-items: center; gap: 12px;
+      height: 56px; position: sticky; top: 0; z-index: 100;
+    }
+    .logo { font-size: 17px; font-weight: 700; color: var(--accent-light); white-space: nowrap; }
+    .logo span { color: var(--gold); }
+    nav { display: flex; gap: 4px; flex: 1; min-width: 0; overflow: hidden; }
+    nav button {
+      background: none; border: none; color: var(--text-muted);
+      padding: 7px 14px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; transition: all .15s; white-space: nowrap;
+    }
+    nav button:hover { background: var(--surface2); color: var(--text); }
+    nav button.active { background: var(--accent); color: #fff; }
+    .header-right { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+    .sync-badge {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: var(--text-muted); white-space: nowrap;
+    }
+    .sync-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: var(--border);
+      transition: background .3s;
+    }
+    .sync-dot.green { background: var(--green); }
+    .sync-dot.yellow { background: var(--gold); animation: pulse 1s infinite; }
+    .sync-dot.red { background: var(--red); }
+    .sync-dot.offline { background: #555; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .btn-icon {
+      background: none; border: 1px solid var(--border); color: var(--text-muted);
+      width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; transition: all .15s;
+    }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent-light); }
+    .btn-icon:disabled { opacity: .3; cursor: not-allowed; }
+    .btn-icon:disabled:hover { border-color: var(--border); color: var(--text-muted); }
+
+    /* ── MAIN ── */
+    main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+
+    /* ── PERIOD BAR ── */
+    .period-bar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .period-bar label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    select {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+
+    /* ── BUTTONS ── */
+    .btn { padding: 8px 14px; border-radius: 8px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-light); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent-light); }
+    .btn-danger { background: rgba(231,76,60,.15); color: var(--red); border: 1px solid rgba(231,76,60,.3); }
+    .btn-danger:hover { background: rgba(231,76,60,.25); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* ── SUMMARY ── */
+    .summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 16px; }
+    .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-align: center; }
+    .summary-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+    .summary-card .amount { font-size: 22px; font-weight: 700; }
+    .summary-card.achats .amount { color: var(--red); }
+    .summary-card.ventes .amount { color: var(--green); }
+    .amount.pos { color: var(--green) !important; }
+    .amount.neg { color: var(--red) !important; }
+
+    /* ── COLUMNS ── */
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .column { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .column-header { padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .column-header h2 { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+    .dot-red { width: 7px; height: 7px; border-radius: 50%; background: var(--red); display: inline-block; }
+    .dot-green { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: var(--surface2); color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; padding: 9px 11px; text-align: left; }
+    td { padding: 8px 11px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+    .amount-cell { font-weight: 700; font-size: 13px; }
+    .amount-cell.achat { color: var(--red); }
+    .amount-cell.vente { color: var(--green); }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .tag-poke { background: rgba(240,192,64,.15); color: var(--gold); }
+    .tag-ygo  { background: rgba(124,92,252,.2); color: var(--accent-light); }
+    .tag-mixte{ background: rgba(46,204,113,.15); color: var(--green); }
+    .tag-none { background: var(--surface2); color: var(--text-muted); }
+    .empty-state { padding: 36px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+    /* ── STATUS TOGGLE ── */
+    .status-btn {
+      background: none; border: 1px solid; border-radius: 20px;
+      font-size: 10px; font-weight: 700; padding: 2px 7px; cursor: pointer;
+      transition: all .15s; white-space: nowrap; letter-spacing: .2px;
+    }
+    .status-btn.done {
+      border-color: rgba(46,204,113,.35); color: var(--green);
+      background: rgba(46,204,113,.08);
+    }
+    .status-btn.pending {
+      border-color: rgba(240,192,64,.35); color: var(--gold);
+      background: rgba(240,192,64,.08);
+    }
+    .status-btn:hover { opacity: .75; transform: scale(.97); }
+
+    /* ── NOTES CELL ── */
+    .notes-cell {
+      font-size: 11px; color: var(--text-muted); max-width: 90px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-style: italic;
+    }
+    .notes-cell:empty::after { content: '—'; opacity: .4; font-style: normal; }
+
+    /* ── TOGGLE SWITCH (modal) ── */
+    .toggle-row { display: flex; align-items: center; gap: 10px; }
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 22px; transition: .2s;
+    }
+    .toggle-slider:before {
+      position: absolute; content: ""; height: 16px; width: 16px;
+      left: 2px; bottom: 2px; background: var(--text-muted);
+      border-radius: 50%; transition: .2s;
+    }
+    input:checked + .toggle-slider { background: rgba(46,204,113,.2); border-color: var(--green); }
+    input:checked + .toggle-slider:before { transform: translateX(18px); background: var(--green); }
+    .toggle-label-text { font-size: 13px; font-weight: 600; transition: color .2s; }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.65); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 24px; width: 440px;
+      max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; }
+    .form-group { margin-bottom: 13px; }
+    .form-group label { display: block; font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 10px 12px; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color .15s; font-family: inherit;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+    .form-group textarea { resize: vertical; min-height: 55px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+    /* ── SETTINGS MODAL ── */
+    .settings-modal { width: 560px; }
+    .settings-section { border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+    .settings-section h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .settings-section p { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px; }
+    .guide-steps { list-style: none; counter-reset: steps; }
+    .guide-steps li {
+      counter-increment: steps; display: flex; gap: 12px;
+      align-items: flex-start; padding: 10px 0;
+      border-bottom: 1px solid var(--border); font-size: 13px; line-height: 1.5;
+    }
+    .guide-steps li:last-child { border-bottom: none; }
+    .guide-steps li::before {
+      content: counter(steps); min-width: 24px; height: 24px;
+      background: var(--accent); color: #fff; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .guide-steps li a { color: var(--accent-light); }
+    .guide-toggle { background: none; border: none; color: var(--accent-light); cursor: pointer; font-size: 13px; padding: 0; margin-bottom: 10px; }
+    .guide-content { display: none; }
+    .guide-content.open { display: block; }
+    .code-snippet { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 12px; font-family: monospace; color: var(--gold); margin: 8px 0; word-break: break-all; }
+    .sync-status-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+    .sync-status-row .sync-label { font-size: 13px; color: var(--text-muted); }
+    .sync-status-row .sync-value { font-size: 13px; font-weight: 600; }
+    .row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── DASHBOARD ── */
+    .dash-period-bar {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .dash-period-bar label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 22px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; text-align: center; }
+    .stat-card .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .stat-card .stat-value { font-size: 26px; font-weight: 800; }
+    .stat-card .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+    .chart-card h3 { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: .4px; }
+    .chart-card canvas { max-height: 210px; }
+    .periods-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .periods-table-wrap h3 { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .4px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+
+    /* ── NOTIFICATION ── */
+    .notif {
+      position: fixed; bottom: 20px; right: 20px;
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 11px 18px; border-radius: 10px;
+      font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      transform: translateY(80px); opacity: 0; transition: all .3s; z-index: 999;
+    }
+    .notif.show { transform: translateY(0); opacity: 1; }
+
+    /* ── MOBILE CARD VIEW ── */
+    .mobile-view { display: none; }
+
+    @media (max-width: 900px) {
+      .columns { display: none; }
+      .mobile-view { display: block; }
+      body { overflow-x: hidden; }
+      main { overflow-x: hidden; }
+    }
+
+    /* ── MOBILE SUB-TABS (Achats / Ventes) ── */
+    .mobile-tabs {
+      display: flex; gap: 0; margin-bottom: 12px;
+      background: var(--surface2); border-radius: 10px;
+      padding: 3px; border: 1px solid var(--border);
+    }
+    .mobile-tab-btn {
+      flex: 1; background: none; border: none; cursor: pointer;
+      padding: 9px 0; border-radius: 8px;
+      font-size: 13px; font-weight: 600; color: var(--text-muted);
+      transition: all .18s; display: flex; align-items: center;
+      justify-content: center; gap: 6px;
+    }
+    .mobile-tab-btn.active {
+      background: var(--surface); color: var(--text);
+      box-shadow: 0 1px 4px rgba(0,0,0,.4);
+    }
+    .mobile-tab-btn.active.achat { color: var(--red); }
+    .mobile-tab-btn.active.vente { color: var(--green); }
+    .mobile-tab-count {
+      font-size: 11px; font-weight: 700;
+      background: var(--surface2); border-radius: 20px;
+      padding: 1px 6px; min-width: 20px; text-align: center;
+    }
+    .mobile-tab-btn.active .mobile-tab-count {
+      background: var(--border);
+    }
+    .mobile-tab-panel { display: none; }
+    .mobile-tab-panel.active { display: block; }
+
+    .card-section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 0 6px;
+    }
+    .card-section-header h3 {
+      font-size: 12px; font-weight: 700; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: .5px;
+      display: flex; align-items: center; gap: 7px;
+    }
+
+    .tx-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 12px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 10px;
+      transition: background .15s;
+    }
+    .tx-card:active { background: var(--surface2); }
+
+    .tx-bar { width: 3px; border-radius: 3px; align-self: stretch; flex-shrink: 0; min-height: 42px; }
+    .tx-bar.achat { background: var(--red); }
+    .tx-bar.vente { background: var(--green); }
+
+    .tx-main { flex: 1; min-width: 0; }
+    .tx-row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; gap: 8px; }
+    .tx-amount-m { font-size: 16px; font-weight: 800; flex-shrink: 0; }
+    .tx-amount-m.achat { color: var(--red); }
+    .tx-amount-m.vente { color: var(--green); }
+    .tx-desc-m { font-size: 13px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+    .tx-meta-m { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .tx-platform-m { font-size: 11px; color: var(--text-muted); }
+    .tx-actions-m { display: flex; gap: 5px; flex-shrink: 0; }
+    .tx-btn-m {
+      width: 34px; height: 34px; border-radius: 8px;
+      border: 1px solid var(--border); background: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; cursor: pointer; color: var(--text-muted);
+    }
+    .tx-btn-m.del { border-color: rgba(231,76,60,.3); color: var(--red); background: rgba(231,76,60,.05); }
+
+    /* ── FAB SPEED DIAL ── */
+    .fab-container {
+      position: fixed; bottom: 24px; right: 20px;
+      display: none; flex-direction: column; align-items: flex-end; gap: 12px;
+      z-index: 150;
+    }
+    .fab-hidden { display: none !important; }
+    .fab-menu { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+    .fab-option {
+      display: flex; align-items: center; gap: 10px;
+      opacity: 0; transform: translateY(8px);
+      transition: all .2s ease; pointer-events: none;
+    }
+    .fab-option.visible { opacity: 1; transform: translateY(0); pointer-events: all; }
+    .fab-option-label {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); font-size: 13px; font-weight: 600;
+      padding: 6px 14px; border-radius: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.5); white-space: nowrap;
+    }
+    .fab-mini {
+      width: 42px; height: 42px; border-radius: 50%;
+      border: none; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .fab-mini.achat { background: var(--red); }
+    .fab-mini.vente { background: var(--green); }
+    .fab-main {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      border: none; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; font-weight: 300;
+      box-shadow: 0 4px 16px rgba(124,92,252,.55);
+      transition: transform .25s, background .2s;
+    }
+    .fab-main.open { transform: rotate(45deg); background: var(--surface2); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+    .fab-backdrop {
+      display: none; position: fixed; inset: 0; z-index: 149;
+      background: rgba(0,0,0,.35);
+    }
+    .fab-backdrop.open { display: block; }
+
+    @media (max-width: 900px) {
+      .fab-container { display: flex; }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .columns { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr 1fr 1fr; }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .sync-badge .sync-label-text { display: none; }
+      nav button { padding: 7px 10px; font-size: 12px; }
+    }
+    @media (max-width: 500px) {
+      .summary { grid-template-columns: 1fr; }
+      .period-bar { gap: 6px; }
+      .summary-card .amount { font-size: 18px; }
+      header { padding: 0 10px; gap: 6px; }
+      .logo { font-size: 14px; }
+      nav button { padding: 6px 8px; font-size: 11px; }
+      .sync-badge { display: none; }
+      .btn-icon { width: 30px; height: 30px; font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════ HEADER ══════════ -->
+<header>
+  <div class="logo">Yuki <span>★</span> Cards</div>
+  <nav>
+    <button class="active" onclick="switchTab('transactions', this)">📋 Transactions</button>
+    <button onclick="switchTab('dashboard', this)">📊 Dashboard</button>
+  </nav>
+  <div class="header-right">
+    <div class="sync-badge">
+      <div class="sync-dot" id="syncDot"></div>
+      <span class="sync-label-text" id="syncLabel">Non connecté</span>
+    </div>
+    <button class="btn-icon" id="undoBtn" onclick="undo()" title="Annuler la dernière action (Ctrl+Z)" disabled>↩</button>
+    <button class="btn-icon" onclick="openSettings()" title="Paramètres">⚙️</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══════════════════════════════════════ TRANSACTIONS ═══ -->
+<div class="tab active" id="tab-transactions">
+  <div class="period-bar">
+    <label>Période :</label>
+    <select id="periodSelect" onchange="switchPeriod()"></select>
+    <button class="btn btn-secondary btn-sm" onclick="openNewPeriod()">+ Nouvelle</button>
+    <button class="btn btn-secondary btn-sm" onclick="openRenamePeriod()">✏️</button>
+    <button class="btn btn-danger btn-sm" onclick="deletePeriod()">🗑</button>
+  </div>
+
+  <div class="summary">
+    <div class="summary-card achats">
+      <div class="label">Total achats</div>
+      <div class="amount" id="totalAchats">0,00 €</div>
+    </div>
+    <div class="summary-card ventes">
+      <div class="label">Total ventes</div>
+      <div class="amount" id="totalVentes">0,00 €</div>
+    </div>
+    <div class="summary-card resultat">
+      <div class="label">Résultat</div>
+      <div class="amount" id="totalResultat">0,00 €</div>
+    </div>
+  </div>
+
+  <div class="columns">
+    <!-- ACHATS -->
+    <div class="column">
+      <div class="column-header">
+        <h2><span class="dot-red"></span> Achats</h2>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('achat')">+ Ajouter</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Montant</th><th>Description</th><th>Plateforme</th><th>Catégorie</th><th>Jeu</th><th>Statut</th><th style="max-width:90px">Notes</th><th></th></tr></thead>
+          <tbody id="bodyAchats"><tr><td colspan="8" class="empty-state">Aucun achat</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <!-- VENTES -->
+    <div class="column">
+      <div class="column-header">
+        <h2><span class="dot-green"></span> Ventes</h2>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('vente')">+ Ajouter</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Montant</th><th>Description</th><th>Plateforme</th><th>Jeu</th><th>Statut</th><th style="max-width:90px">Notes</th><th></th></tr></thead>
+          <tbody id="bodyVentes"><tr><td colspan="7" class="empty-state">Aucune vente</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MOBILE CARD VIEW (affiché sur Android/mobile < 768px) ══ -->
+  <div class="mobile-view" id="mobileView">
+
+    <!-- Sous-onglets Achats / Ventes -->
+    <div class="mobile-tabs">
+      <button class="mobile-tab-btn achat active" id="mTabAchat" onclick="switchMobileTab('achat')">
+        <span class="dot-red"></span> Achats
+        <span class="mobile-tab-count" id="mTabCountAchat">0</span>
+      </button>
+      <button class="mobile-tab-btn vente" id="mTabVente" onclick="switchMobileTab('vente')">
+        <span class="dot-green"></span> Ventes
+        <span class="mobile-tab-count" id="mTabCountVente">0</span>
+      </button>
+    </div>
+
+    <!-- Panel Achats -->
+    <div class="mobile-tab-panel active" id="mPanelAchat">
+      <div id="cardListAchats"></div>
+    </div>
+
+    <!-- Panel Ventes -->
+    <div class="mobile-tab-panel" id="mPanelVente">
+      <div id="cardListVentes"></div>
+    </div>
+
+    <!-- Espace pour que le FAB ne cache pas la dernière carte -->
+    <div style="height:80px"></div>
+  </div>
+
+</div>
+
+<!-- ══ FAB SPEED DIAL ══ -->
+<div class="fab-backdrop" id="fabBackdrop" onclick="closeFab()"></div>
+<div class="fab-container" id="fabContainer">
+  <div class="fab-menu" id="fabMenu">
+    <div class="fab-option" id="fabOptVente">
+      <span class="fab-option-label">💰 Vente</span>
+      <button class="fab-mini vente" onclick="fabAdd('vente')">＋</button>
+    </div>
+    <div class="fab-option" id="fabOptAchat">
+      <span class="fab-option-label">🛒 Achat</span>
+      <button class="fab-mini achat" onclick="fabAdd('achat')">＋</button>
+    </div>
+  </div>
+  <button class="fab-main" id="fabMain" onclick="toggleFab()">+</button>
+</div>
+
+<!-- ═══════════════════════════════════════ DASHBOARD ═══ -->
+<div class="tab" id="tab-dashboard">
+
+  <!-- Sélecteur de période pour le dashboard -->
+  <div class="dash-period-bar">
+    <label>Afficher :</label>
+    <select id="dashPeriodSelect" onchange="onDashPeriodChange()">
+      <option value="all">Toutes les périodes</option>
+    </select>
+  </div>
+
+  <div class="dashboard-grid">
+    <div class="stat-card">
+      <div class="stat-label" id="dash-label-achats">Total achats (toutes périodes)</div>
+      <div class="stat-value" id="dash-total-achats" style="color:var(--red)">0,00 €</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label" id="dash-label-ventes">Total ventes (toutes périodes)</div>
+      <div class="stat-value" id="dash-total-ventes" style="color:var(--green)">0,00 €</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Résultat</div>
+      <div class="stat-value" id="dash-resultat">0,00 €</div>
+      <div class="stat-sub" id="dash-resultat-sub"></div>
+    </div>
+  </div>
+  <div class="charts-grid">
+    <div class="chart-card"><h3>Résultat par période</h3><canvas id="chartPeriods"></canvas></div>
+    <div class="chart-card"><h3>Ventes par plateforme</h3><canvas id="chartPlatforms"></canvas></div>
+    <div class="chart-card"><h3>Achats par jeu</h3><canvas id="chartGameAchats"></canvas></div>
+    <div class="chart-card"><h3>Ventes par jeu</h3><canvas id="chartGameVentes"></canvas></div>
+  </div>
+  <div class="periods-table-wrap">
+    <h3>Récapitulatif par période</h3>
+    <table>
+      <thead><tr><th>Période</th><th>Achats</th><th>Ventes</th><th>Résultat</th><th>Transactions</th></tr></thead>
+      <tbody id="dash-periods-body"></tbody>
+    </table>
+  </div>
+</div>
+
+</main>
+
+<!-- ══════════════════ MODAL TRANSACTION ══════════════════ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Nouvel achat</h3>
+    <input type="hidden" id="modalType" />
+    <input type="hidden" id="modalEditId" />
+    <div class="form-group">
+      <label>Montant (€)</label>
+      <input type="number" id="fAmount" placeholder="0.00" step="0.01" min="0" />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="fDesc" placeholder="Lot de cartes, boosters…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="fNotes" placeholder="Commentaire optionnel…" style="min-height:42px"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Plateforme</label>
+      <select id="fPlatform"></select>
+    </div>
+    <div class="form-group" id="fCategoryGroup">
+      <label>Catégorie</label>
+      <select id="fCategory">
+        <option>Cartes</option><option>Transport</option>
+        <option>Nourriture</option><option>Frais</option><option>Autre</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Jeu</label>
+      <select id="fGame">
+        <option value="Pokémon">Pokémon</option>
+        <option value="Yu-Gi-Oh">Yu-Gi-Oh!</option>
+        <option value="Mixte">Mixte</option>
+        <option value="—">—</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label id="fStatusLabel">Statut</label>
+      <div class="toggle-row">
+        <label class="toggle-switch">
+          <input type="checkbox" id="fStatus" onchange="updateStatusLabel()" />
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-label-text" id="fStatusText" style="color:var(--text-muted)">⏳ En attente</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveTransaction()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ MODAL PÉRIODE ══════════════════ -->
+<div class="modal-overlay" id="modalPeriod">
+  <div class="modal">
+    <h3 id="periodModalTitle">Nouvelle période</h3>
+    <div class="form-group">
+      <label>Nom de la période</label>
+      <input type="text" id="fPeriodName" placeholder="Ex : Japon Nov 2024" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closePeriodModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="savePeriod()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ MODAL PARAMÈTRES ══════════════════ -->
+<div class="modal-overlay" id="modalSettings">
+  <div class="modal settings-modal">
+    <h3>⚙️ Paramètres</h3>
+
+    <!-- SECTION 1 : FIREBASE SYNC -->
+    <div class="settings-section">
+      <h4>☁️ Synchronisation multi-appareils</h4>
+
+      <div class="sync-status-row">
+        <div class="sync-dot" id="settingsSyncDot"></div>
+        <span class="sync-label">Statut :</span>
+        <span class="sync-value" id="settingsSyncStatus">Non configuré</span>
+      </div>
+
+      <p>Pour synchroniser tes données entre ton ordi et ton téléphone, connecte l'app à Firebase (service Google gratuit).</p>
+
+      <button class="guide-toggle" onclick="toggleGuide()">📖 Afficher le guide de configuration (5 min)</button>
+      <div class="guide-content" id="guideContent">
+        <ol class="guide-steps">
+          <li>Va sur <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> et connecte-toi avec ton compte Gmail.</li>
+          <li>Clique sur <strong>"Créer un projet"</strong> → donne un nom (ex. <em>yuki-cards</em>) → continue → désactive Google Analytics si proposé → <strong>"Créer le projet"</strong>.</li>
+          <li>Dans le menu de gauche, clique sur <strong>"Realtime Database"</strong> → <strong>"Créer une base de données"</strong> → choisis l'emplacement → <strong>"Démarrer en mode test"</strong> → <strong>"Activer"</strong>.</li>
+          <li>Clique sur l'icône ⚙️ en haut à gauche → <strong>"Paramètres du projet"</strong> → descends jusqu'à <strong>"Vos applications"</strong> → clique sur l'icône <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">&lt;/&gt;</code> → donne un nom (ex. <em>yuki-web</em>) → <strong>"Enregistrer l'application"</strong>.</li>
+          <li>Tu vois un bloc de code avec <strong>firebaseConfig</strong>. Copie les valeurs et colle-les dans les champs ci-dessous.</li>
+        </ol>
+      </div>
+
+      <div class="form-group" style="margin-top:12px">
+        <label>API Key</label>
+        <input type="text" id="cfg-apiKey" placeholder="AIzaSy..." />
+      </div>
+      <div class="form-group">
+        <label>Auth Domain</label>
+        <input type="text" id="cfg-authDomain" placeholder="ton-projet.firebaseapp.com" />
+      </div>
+      <div class="form-group">
+        <label>Database URL</label>
+        <input type="text" id="cfg-databaseURL" placeholder="https://ton-projet-default-rtdb.firebaseio.com" />
+      </div>
+      <div class="form-group">
+        <label>Project ID</label>
+        <input type="text" id="cfg-projectId" placeholder="ton-projet" />
+      </div>
+
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text-muted);line-height:1.6">
+        💡 <strong style="color:var(--text)">Database URL</strong> — elle ressemble à :<br>
+        <span style="font-family:monospace;color:var(--gold)">https://TON-PROJET-default-rtdb.firebaseio.com</span><br>
+        ou (si région Europe) :<br>
+        <span style="font-family:monospace;color:var(--gold)">https://TON-PROJET-default-rtdb.europe-west1.firebasedatabase.app</span>
+      </div>
+      <div class="row-btns">
+        <button class="btn btn-primary" onclick="connectFirebase()">🔗 Connecter Firebase</button>
+        <button class="btn btn-danger btn-sm" onclick="disconnectFirebase()" style="margin-left:auto">Déconnecter</button>
+      </div>
+    </div>
+
+    <!-- SECTION 2 : MOBILE -->
+    <div class="settings-section">
+      <h4>📱 Utiliser sur smartphone</h4>
+      <p>Une fois Firebase configuré, voici comment accéder à l'app sur ton téléphone :</p>
+      <ol class="guide-steps">
+        <li>Va sur <a href="https://app.netlify.com/drop" target="_blank">app.netlify.com/drop</a> (crée un compte gratuit si besoin).</li>
+        <li>Glisse-dépose le <strong>dossier "app gestion collection"</strong> entier dans la zone prévue. Tu obtiens une URL du type <span class="code-snippet">https://nom-aléatoire.netlify.app</span></li>
+        <li>Ouvre cette URL sur ton téléphone. Sur <strong>iPhone</strong> : bouton Partager → "Sur l'écran d'accueil". Sur <strong>Android</strong> : menu ⋮ → "Ajouter à l'écran d'accueil".</li>
+        <li>L'app apparaît comme une vraie application sur ton écran d'accueil. Les données se synchronisent automatiquement via Firebase. ✅</li>
+      </ol>
+      <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">⚠️ Après chaque mise à jour du fichier HTML, redépose-le sur Netlify pour que l'URL reste à jour.</p>
+    </div>
+
+    <!-- SECTION 3 : DONNÉES -->
+    <div class="settings-section">
+      <h4>💾 Gestion des données</h4>
+      <p>Exporte tes données en JSON (sauvegarde) ou en Excel (Google Sheets), ou importe un fichier existant.</p>
+      <div class="row-btns">
+        <button class="btn btn-secondary" onclick="exportData()">⬇️ Exporter JSON</button>
+        <button class="btn btn-secondary" onclick="exportExcel()">📊 Exporter Excel</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Importer JSON</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)" />
+      </div>
+      <p style="font-size:11px;color:var(--text-muted);margin-top:8px;margin-bottom:0">💡 Une sauvegarde JSON est automatiquement téléchargée toutes les 24h.</p>
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+        <button class="btn btn-danger btn-sm" onclick="resetAll()">🗑 Supprimer toutes les données</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeSettings()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIF -->
+<div class="notif" id="notif"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// CONSTANTES
+// ═══════════════════════════════════════════════════════
+const PLATFORMS_ACHAT = ['Cardmarket','eBay','Facebook','Vinted','Instagram','Wallapop','Le Bon Coin','WhatsApp','Mains propres','Autre'];
+const PLATFORMS_VENTE = ['Cardmarket','Facebook','Vinted','Instagram','Wallapop','Le Bon Coin','WhatsApp','Mains propres','Voggt','eBay','Autre'];
+
+// ═══════════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════
+let data = { periods: [] };
+let currentPeriodId = null;
+let periodAction = 'new';
+let chartInstances = {};
+let db = null;
+let isFirebaseConnected = false;
+let isDashboardVisible = false;
+let undoStack = [];
+let dashPeriodId = 'all';
+
+// ═══════════════════════════════════════════════════════
+// UTILITAIRES
+// ═══════════════════════════════════════════════════════
+function uid() { return Math.random().toString(36).slice(2,10) + Date.now().toString(36); }
+function fmt(n) { return (+n).toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €'; }
+function fmtK(n) {
+  const v = +n;
+  if (Math.abs(v) >= 10000) return (v/1000).toFixed(1).replace('.',',') + 'k €';
+  return fmt(v);
+}
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Normalise une transaction individuelle (status + notes)
+function normalizeTransaction(t) {
+  return {
+    ...t,
+    // Les items existants sans status = true (déjà payé/reçu)
+    // Les nouveaux ajoutés manuellement = false (en attente)
+    status: t.status !== undefined ? Boolean(t.status) : true,
+    notes: t.notes || ''
+  };
+}
+
+// Firebase stocke [] vides comme null, et les tableaux peuvent devenir des objets.
+function sanitizeData(d) {
+  if (!d) return { periods: [{ id: uid(), name: new Date().getFullYear().toString(), purchases: [], sales: [] }] };
+
+  let periods = d.periods;
+  if (periods && !Array.isArray(periods)) periods = Object.values(periods);
+  if (!periods || periods.length === 0) return { periods: [{ id: uid(), name: new Date().getFullYear().toString(), purchases: [], sales: [] }] };
+
+  periods = periods
+    .filter(p => p !== null && p !== undefined)
+    .map(p => {
+      let purchases = p.purchases;
+      if (!purchases) purchases = [];
+      else if (!Array.isArray(purchases)) purchases = Object.values(purchases);
+
+      let sales = p.sales;
+      if (!sales) sales = [];
+      else if (!Array.isArray(sales)) sales = Object.values(sales);
+
+      return {
+        id: p.id || uid(),
+        name: p.name || 'Sans nom',
+        purchases: purchases.filter(Boolean).map(normalizeTransaction),
+        sales: sales.filter(Boolean).map(normalizeTransaction)
+      };
+    });
+
+  return { periods };
+}
+
+let notifTimer;
+function notify(msg, color) {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.style.borderColor = color || 'var(--border)';
+  el.classList.add('show');
+  clearTimeout(notifTimer);
+  notifTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  const sDot = document.getElementById('settingsSyncDot');
+  const sStatus = document.getElementById('settingsSyncStatus');
+
+  const configs = {
+    off:     { cls: '',        txt: 'Non connecté', stxt: 'Firebase non configuré' },
+    syncing: { cls: 'yellow',  txt: 'Sync…',        stxt: 'Synchronisation…' },
+    ok:      { cls: 'green',   txt: 'Synchronisé',  stxt: '✅ Connecté et synchronisé' },
+    error:   { cls: 'red',     txt: 'Erreur',        stxt: '❌ Erreur de connexion' },
+    offline: { cls: 'offline', txt: 'Hors ligne',   stxt: '📴 Hors ligne — modifications sauvegardées en local, sync auto au retour' },
+  };
+  const c = configs[status] || configs.off;
+  dot.className = 'sync-dot ' + c.cls;
+  label.textContent = c.txt;
+  if (sDot) sDot.className = 'sync-dot ' + c.cls;
+  if (sStatus) sStatus.textContent = c.stxt;
+}
+
+// ═══════════════════════════════════════════════════════
+// UNDO
+// ═══════════════════════════════════════════════════════
+function pushUndo() {
+  undoStack.push(JSON.stringify(data));
+  if (undoStack.length > 30) undoStack.shift();
+  updateUndoBtn();
+}
+
+function undo() {
+  if (undoStack.length === 0) { notify('Rien à annuler', 'var(--text-muted)'); return; }
+  data = sanitizeData(JSON.parse(undoStack.pop()));
+  currentPeriodId = data.periods.find(p => p.id === currentPeriodId)
+    ? currentPeriodId : data.periods[0].id;
+  save();
+  renderPeriodSelect();
+  renderTransactions();
+  if (isDashboardVisible) renderDashboard();
+  updateUndoBtn();
+  notify('↩️ Action annulée');
+}
+
+function updateUndoBtn() {
+  const btn = document.getElementById('undoBtn');
+  if (btn) btn.disabled = undoStack.length === 0;
+}
+
+// ═══════════════════════════════════════════════════════
+// PERSISTENCE — localStorage
+// ═══════════════════════════════════════════════════════
+function saveLocal() {
+  localStorage.setItem('yukiCards', JSON.stringify(data));
+}
+
+function loadLocal() {
+  const raw = localStorage.getItem('yukiCards');
+  if (raw) {
+    try { data = sanitizeData(JSON.parse(raw)); } catch { data = sanitizeData(null); }
+  } else {
+    data = sanitizeData(null);
+  }
+  saveLocal();
+  currentPeriodId = data.periods[0].id;
+}
+
+// ═══════════════════════════════════════════════════════
+// PERSISTENCE — Firebase
+// ═══════════════════════════════════════════════════════
+function save() {
+  saveLocal();
+  if (db && isFirebaseConnected) {
+    setSyncStatus('syncing');
+    db.ref('yukiCards').set(data)
+      .then(() => setSyncStatus('ok'))
+      .catch(() => setSyncStatus('error'));
+  }
+}
+
+function initFirebaseFromStorage() {
+  const cfg = loadFirebaseConfig();
+  if (cfg) connectWithConfig(cfg);
+}
+
+function loadFirebaseConfig() {
+  const raw = localStorage.getItem('yukiFirebaseConfig');
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
+function connectWithConfig(cfg) {
+  setSyncStatus('syncing');
+  isFirebaseConnected = false;
+  db = null;
+
+  const deleteExisting = firebase.apps.length > 0
+    ? firebase.app().delete()
+    : Promise.resolve();
+
+  deleteExisting.catch(() => {}).finally(() => {
+    try {
+      firebase.initializeApp(cfg);
+      db = firebase.app().database(cfg.databaseURL);
+
+      db.ref('yukiCards').once('value').then(snapshot => {
+        const fbData = sanitizeData(snapshot.val());
+        const hasLocal = data.periods.some(p => p.purchases.length > 0 || p.sales.length > 0);
+        const hasFb = fbData.periods.some(p => p.purchases.length > 0 || p.sales.length > 0);
+
+        if (hasFb) {
+          data = fbData;
+          currentPeriodId = data.periods.find(p => p.id === currentPeriodId)
+            ? currentPeriodId : data.periods[0].id;
+          saveLocal();
+          renderTransactions();
+          if (isDashboardVisible) renderDashboard();
+          notify('✅ Données synchronisées depuis Firebase !', 'var(--green)');
+        } else if (hasLocal) {
+          db.ref('yukiCards').set(data);
+          notify('✅ Données locales envoyées vers Firebase !', 'var(--green)');
+        } else {
+          notify('✅ Firebase connecté — prêt à enregistrer !', 'var(--green)');
+        }
+
+        isFirebaseConnected = true;
+        setSyncStatus(navigator.onLine ? 'ok' : 'offline');
+
+        db.ref('.info/connected').on('value', snap => {
+          if (!isFirebaseConnected) return;
+          setSyncStatus(snap.val() === true ? 'ok' : 'offline');
+        });
+
+        db.ref('yukiCards').on('value',
+          snapshot => {
+            const val = sanitizeData(snapshot.val());
+            if (!val || !val.periods) return;
+            if (JSON.stringify(val) !== JSON.stringify(data)) {
+              data = val;
+              currentPeriodId = data.periods.find(p => p.id === currentPeriodId)
+                ? currentPeriodId : data.periods[0].id;
+              saveLocal();
+              renderTransactions();
+              if (isDashboardVisible) renderDashboard();
+              notify('🔄 Mise à jour depuis un autre appareil', 'var(--accent)');
+            }
+          },
+          error => {
+            console.error('Firebase listener error:', error.code, error.message);
+            isFirebaseConnected = false;
+            setSyncStatus('error');
+            notify('⚠️ Firebase déconnecté — données sauvegardées en local', 'var(--gold)');
+          }
+        );
+
+      }).catch(error => {
+        console.error('Firebase error:', error.code, error.message);
+        db = null;
+        isFirebaseConnected = false;
+        setSyncStatus('error');
+        const sEl = document.getElementById('settingsSyncStatus');
+        if (error.code === 'PERMISSION_DENIED') {
+          const msg = '❌ Accès refusé — vérifie les règles Firebase (Realtime Database → Règles)';
+          notify(msg, 'var(--red)');
+          if (sEl) sEl.textContent = msg;
+        } else {
+          const msg = `❌ Erreur Firebase : ${error.code || error.message || 'inconnue'}`;
+          notify(msg, 'var(--red)');
+          if (sEl) sEl.textContent = msg;
+        }
+      });
+
+    } catch(e) {
+      console.error('Firebase init error:', e);
+      db = null;
+      isFirebaseConnected = false;
+      setSyncStatus('error');
+      const msg = `❌ Erreur d'init : ${e.message || 'vérifier les clés dans ⚙️'}`;
+      notify(msg, 'var(--red)');
+      const sEl = document.getElementById('settingsSyncStatus');
+      if (sEl) sEl.textContent = msg;
+    }
+  });
+}
+
+function connectFirebase() {
+  const cfg = {
+    apiKey:      document.getElementById('cfg-apiKey').value.trim(),
+    authDomain:  document.getElementById('cfg-authDomain').value.trim(),
+    databaseURL: document.getElementById('cfg-databaseURL').value.trim(),
+    projectId:   document.getElementById('cfg-projectId').value.trim(),
+  };
+
+  if (!cfg.apiKey || !cfg.databaseURL || !cfg.projectId) {
+    notify('⚠️ Remplis au moins : API Key, Database URL et Project ID', 'var(--gold)');
+    return;
+  }
+  if (!cfg.databaseURL.startsWith('https://')) {
+    notify('⚠️ La Database URL doit commencer par https://', 'var(--gold)');
+    return;
+  }
+
+  localStorage.setItem('yukiFirebaseConfig', JSON.stringify(cfg));
+  connectWithConfig(cfg);
+  notify('🔗 Connexion Firebase en cours…', 'var(--accent)');
+}
+
+function disconnectFirebase() {
+  if (!confirm('Déconnecter Firebase ? Tes données resteront en local.')) return;
+  localStorage.removeItem('yukiFirebaseConfig');
+  db = null;
+  isFirebaseConnected = false;
+  if (firebase.apps.length > 0) firebase.app().delete().catch(() => {});
+  setSyncStatus('off');
+  notify('Firebase déconnecté. Données sauvegardées en local.', 'var(--text-muted)');
+}
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  isDashboardVisible = (name === 'dashboard');
+  if (isDashboardVisible) renderDashboard();
+  // Masquer le FAB quand on n'est pas sur Transactions
+  const fab = document.getElementById('fabContainer');
+  if (fab) fab.classList.toggle('fab-hidden', name !== 'transactions');
+}
+
+// ═══════════════════════════════════════════════════════
+// PÉRIODES
+// ═══════════════════════════════════════════════════════
+function currentPeriod() { return data.periods.find(p => p.id === currentPeriodId); }
+
+function renderPeriodSelect() {
+  const sel = document.getElementById('periodSelect');
+  sel.innerHTML = data.periods.map(p =>
+    `<option value="${p.id}">${escHtml(p.name)}</option>`
+  ).join('');
+  sel.value = currentPeriodId;
+}
+
+function switchPeriod() {
+  currentPeriodId = document.getElementById('periodSelect').value;
+  renderTransactions();
+}
+
+function openNewPeriod() {
+  periodAction = 'new';
+  document.getElementById('periodModalTitle').textContent = 'Nouvelle période';
+  document.getElementById('fPeriodName').value = '';
+  document.getElementById('modalPeriod').classList.add('open');
+  setTimeout(() => document.getElementById('fPeriodName').focus(), 80);
+}
+
+function openRenamePeriod() {
+  if (!currentPeriod()) return;
+  periodAction = 'rename';
+  document.getElementById('periodModalTitle').textContent = 'Renommer la période';
+  document.getElementById('fPeriodName').value = currentPeriod().name;
+  document.getElementById('modalPeriod').classList.add('open');
+  setTimeout(() => document.getElementById('fPeriodName').focus(), 80);
+}
+
+function closePeriodModal() { document.getElementById('modalPeriod').classList.remove('open'); }
+
+function savePeriod() {
+  const name = document.getElementById('fPeriodName').value.trim();
+  if (!name) return;
+  pushUndo();
+  if (periodAction === 'new') {
+    const p = { id: uid(), name, purchases: [], sales: [] };
+    data.periods.unshift(p);
+    currentPeriodId = p.id;
+  } else {
+    currentPeriod().name = name;
+  }
+  save(); closePeriodModal(); renderPeriodSelect(); renderTransactions();
+  notify(periodAction === 'new' ? `Période "${name}" créée !` : `Renommé en "${name}"`);
+}
+
+function deletePeriod() {
+  if (data.periods.length <= 1) { alert('Garde au moins une période.'); return; }
+  const p = currentPeriod();
+  if (!confirm(`Supprimer "${p.name}" et toutes ses transactions ?`)) return;
+  pushUndo();
+  data.periods = data.periods.filter(x => x.id !== currentPeriodId);
+  currentPeriodId = data.periods[0].id;
+  save(); renderPeriodSelect(); renderTransactions();
+  notify('Période supprimée');
+}
+
+// ═══════════════════════════════════════════════════════
+// TRANSACTIONS — RENDU
+// ═══════════════════════════════════════════════════════
+function gameTag(g) {
+  const m = { 'Pokémon':['tag-poke','Pokémon'], 'Yu-Gi-Oh':['tag-ygo','Yu-Gi-Oh!'], 'Mixte':['tag-mixte','Mixte'], '—':['tag-none','—'] };
+  const [cls,label] = m[g]||['tag-none',g];
+  return `<span class="tag ${cls}">${label}</span>`;
+}
+
+// ── MOBILE SUB-TABS ──
+let _mobileActiveTab = 'achat';
+
+function switchMobileTab(tab) {
+  _mobileActiveTab = tab;
+  document.getElementById('mTabAchat').classList.toggle('active', tab === 'achat');
+  document.getElementById('mTabVente').classList.toggle('active', tab === 'vente');
+  document.getElementById('mPanelAchat').classList.toggle('active', tab === 'achat');
+  document.getElementById('mPanelVente').classList.toggle('active', tab === 'vente');
+}
+
+// ── MOBILE CARDS ──
+function renderMobileCards(p) {
+  const cardA = document.getElementById('cardListAchats');
+  const cardV = document.getElementById('cardListVentes');
+  if (!cardA || !cardV) return;
+
+  // Mise à jour des compteurs d'onglets
+  const countAEl = document.getElementById('mTabCountAchat');
+  const countVEl = document.getElementById('mTabCountVente');
+  if (countAEl) countAEl.textContent = p.purchases.length;
+  if (countVEl) countVEl.textContent = p.sales.length;
+
+  const achatsRev = [...p.purchases].reverse();
+  cardA.innerHTML = achatsRev.length === 0
+    ? `<div class="empty-state" style="padding:24px 0">Aucun achat pour cette période</div>`
+    : achatsRev.map(a => {
+        const done = a.status === true || a.status === 'true';
+        return `<div class="tx-card">
+          <div class="tx-bar achat"></div>
+          <div class="tx-main">
+            <div class="tx-row1">
+              <span class="tx-amount-m achat">${fmt(a.amount)}</span>
+              <button class="status-btn ${done?'done':'pending'}" onclick="toggleStatus('achat','${a.id}')">${done?'✅ Reçu':'⏳ En attente'}</button>
+            </div>
+            <div class="tx-desc-m">${escHtml(a.desc)||'—'}</div>
+            <div class="tx-meta-m">
+              ${gameTag(a.game)}
+              <span class="tx-platform-m">· ${escHtml(a.platform)}</span>
+              ${a.category?`<span class="tx-platform-m">· ${escHtml(a.category)}</span>`:''}
+              ${a.notes?`<span class="tx-platform-m" title="${escHtml(a.notes)}">📝</span>`:''}
+            </div>
+          </div>
+          <div class="tx-actions-m">
+            <button class="tx-btn-m" onclick="editTransaction('achat','${a.id}')">✏️</button>
+            <button class="tx-btn-m del" onclick="deleteTransaction('achat','${a.id}')">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+
+  const ventesRev = [...p.sales].reverse();
+  cardV.innerHTML = ventesRev.length === 0
+    ? `<div class="empty-state" style="padding:24px 0">Aucune vente pour cette période</div>`
+    : ventesRev.map(v => {
+        const done = v.status === true || v.status === 'true';
+        return `<div class="tx-card">
+          <div class="tx-bar vente"></div>
+          <div class="tx-main">
+            <div class="tx-row1">
+              <span class="tx-amount-m vente">${fmt(v.amount)}</span>
+              <button class="status-btn ${done?'done':'pending'}" onclick="toggleStatus('vente','${v.id}')">${done?'✅ Payé':'⏳ En attente'}</button>
+            </div>
+            <div class="tx-desc-m">${escHtml(v.desc)||'—'}</div>
+            <div class="tx-meta-m">
+              ${gameTag(v.game)}
+              <span class="tx-platform-m">· ${escHtml(v.platform)}</span>
+              ${v.notes?`<span class="tx-platform-m" title="${escHtml(v.notes)}">📝</span>`:''}
+            </div>
+          </div>
+          <div class="tx-actions-m">
+            <button class="tx-btn-m" onclick="editTransaction('vente','${v.id}')">✏️</button>
+            <button class="tx-btn-m del" onclick="deleteTransaction('vente','${v.id}')">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+}
+
+function renderTransactions() {
+  renderPeriodSelect();
+  const p = currentPeriod(); if (!p) return;
+
+  const totalA = p.purchases.reduce((s,x)=>s+(+x.amount),0);
+  const totalV = p.sales.reduce((s,x)=>s+(+x.amount),0);
+  const res = totalV - totalA;
+
+  document.getElementById('totalAchats').textContent = fmt(totalA);
+  document.getElementById('totalVentes').textContent = fmt(totalV);
+  const rEl = document.getElementById('totalResultat');
+  rEl.textContent = (res>=0?'+':'') + fmt(res);
+  rEl.className = 'amount ' + (res>=0?'pos':'neg');
+
+  // Afficher du plus récent au plus ancien (reverse de l'ordre de stockage)
+  const bodyA = document.getElementById('bodyAchats');
+  const achatsRev = [...p.purchases].reverse();
+  bodyA.innerHTML = achatsRev.length === 0
+    ? `<tr><td colspan="8" class="empty-state">Aucun achat pour cette période</td></tr>`
+    : achatsRev.map(a => {
+        const done = a.status === true || a.status === 'true';
+        return `<tr>
+          <td class="amount-cell achat">${fmt(a.amount)}</td>
+          <td>${escHtml(a.desc)}</td>
+          <td>${escHtml(a.platform)}</td>
+          <td>${escHtml(a.category)}</td>
+          <td>${gameTag(a.game)}</td>
+          <td><button class="status-btn ${done?'done':'pending'}" onclick="toggleStatus('achat','${a.id}')">${done?'✅ Reçu':'⏳ En attente'}</button></td>
+          <td class="notes-cell" title="${escHtml(a.notes)}">${escHtml(a.notes)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-secondary btn-sm" onclick="editTransaction('achat','${a.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteTransaction('achat','${a.id}')">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+  const bodyV = document.getElementById('bodyVentes');
+  const ventesRev = [...p.sales].reverse();
+  bodyV.innerHTML = ventesRev.length === 0
+    ? `<tr><td colspan="7" class="empty-state">Aucune vente pour cette période</td></tr>`
+    : ventesRev.map(v => {
+        const done = v.status === true || v.status === 'true';
+        return `<tr>
+          <td class="amount-cell vente">${fmt(v.amount)}</td>
+          <td>${escHtml(v.desc)}</td>
+          <td>${escHtml(v.platform)}</td>
+          <td>${gameTag(v.game)}</td>
+          <td><button class="status-btn ${done?'done':'pending'}" onclick="toggleStatus('vente','${v.id}')">${done?'✅ Payé':'⏳ En attente'}</button></td>
+          <td class="notes-cell" title="${escHtml(v.notes)}">${escHtml(v.notes)}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-secondary btn-sm" onclick="editTransaction('vente','${v.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteTransaction('vente','${v.id}')">✕</button>
+          </td>
+        </tr>`;
+      }).join('');
+
+  // Rendu mobile cards (vue Android)
+  renderMobileCards(p);
+}
+
+function toggleStatus(type, id) {
+  const p = currentPeriod();
+  const arr = type === 'achat' ? p.purchases : p.sales;
+  const item = arr.find(x => x.id === id);
+  if (!item) return;
+  pushUndo();
+  item.status = !item.status;
+  save();
+  renderTransactions();
+}
+
+function deleteTransaction(type, id) {
+  const p = currentPeriod();
+  pushUndo();
+  if (type==='achat') p.purchases = p.purchases.filter(x=>x.id!==id);
+  else                p.sales     = p.sales.filter(x=>x.id!==id);
+  save(); renderTransactions(); notify('Transaction supprimée');
+}
+
+// ═══════════════════════════════════════════════════════
+// MODAL TRANSACTION
+// ═══════════════════════════════════════════════════════
+function updateStatusLabel() {
+  const type = document.getElementById('modalType').value;
+  const checked = document.getElementById('fStatus').checked;
+  const textEl = document.getElementById('fStatusText');
+  if (checked) {
+    textEl.textContent = type === 'achat' ? '✅ Reçu' : '✅ Payé';
+    textEl.style.color = 'var(--green)';
+  } else {
+    textEl.textContent = '⏳ En attente';
+    textEl.style.color = 'var(--text-muted)';
+  }
+}
+
+function openModal(type, prefill=null) {
+  document.getElementById('modalType').value = type;
+  document.getElementById('modalEditId').value = prefill ? prefill.id : '';
+  document.getElementById('modalTitle').textContent = prefill
+    ? (type==='achat'?'Modifier l\'achat':'Modifier la vente')
+    : (type==='achat'?'Nouvel achat':'Nouvelle vente');
+
+  const plats = type==='achat' ? PLATFORMS_ACHAT : PLATFORMS_VENTE;
+  document.getElementById('fPlatform').innerHTML = plats.map(p=>`<option>${p}</option>`).join('');
+
+  document.getElementById('fCategoryGroup').style.display = type==='achat'?'block':'none';
+  document.getElementById('fAmount').value   = prefill ? prefill.amount : '';
+  document.getElementById('fDesc').value     = prefill ? prefill.desc   : '';
+  document.getElementById('fNotes').value    = prefill ? (prefill.notes || '') : '';
+  document.getElementById('fPlatform').value = prefill ? prefill.platform : plats[0];
+  document.getElementById('fGame').value     = prefill ? prefill.game     : 'Pokémon';
+  if (type==='achat') document.getElementById('fCategory').value = prefill ? prefill.category : 'Cartes';
+
+  // Status : existing items = true (done), new items = false (pending)
+  const statusVal = prefill ? (prefill.status === true || prefill.status === 'true') : false;
+  document.getElementById('fStatus').checked = statusVal;
+  updateStatusLabel();
+
+  document.getElementById('modalOverlay').classList.add('open');
+  setTimeout(() => document.getElementById('fAmount').focus(), 80);
+}
+
+function editTransaction(type, id) {
+  const p = currentPeriod();
+  const item = type==='achat' ? p.purchases.find(x=>x.id===id) : p.sales.find(x=>x.id===id);
+  if (item) openModal(type, item);
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+
+function saveTransaction() {
+  const type   = document.getElementById('modalType').value;
+  const editId = document.getElementById('modalEditId').value;
+  const amount = parseFloat(document.getElementById('fAmount').value);
+  if (!amount || amount<=0) { notify('⚠️ Montant invalide', 'var(--gold)'); return; }
+
+  const entry = {
+    id:       editId || uid(),
+    amount,
+    desc:     document.getElementById('fDesc').value.trim(),
+    notes:    document.getElementById('fNotes').value.trim(),
+    platform: document.getElementById('fPlatform').value,
+    game:     document.getElementById('fGame').value,
+    status:   document.getElementById('fStatus').checked,
+  };
+  if (type==='achat') entry.category = document.getElementById('fCategory').value;
+
+  const p = currentPeriod();
+  const arr = type==='achat' ? p.purchases : p.sales;
+
+  pushUndo();
+  if (editId) { const i=arr.findIndex(x=>x.id===editId); if(i!==-1) arr[i]=entry; }
+  else arr.push(entry);
+
+  save(); closeModal(); renderTransactions();
+  // Sur mobile, basculer vers l'onglet correspondant
+  if (window.innerWidth <= 767) switchMobileTab(type === 'achat' ? 'achat' : 'vente');
+  notify(editId ? '✅ Transaction mise à jour' : '✅ Transaction ajoutée');
+}
+
+// ═══════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════
+function openSettings() {
+  const cfg = loadFirebaseConfig() || {};
+  document.getElementById('cfg-apiKey').value     = cfg.apiKey     || '';
+  document.getElementById('cfg-authDomain').value = cfg.authDomain || '';
+  document.getElementById('cfg-databaseURL').value= cfg.databaseURL|| '';
+  document.getElementById('cfg-projectId').value  = cfg.projectId  || '';
+  document.getElementById('modalSettings').classList.add('open');
+}
+
+function closeSettings() { document.getElementById('modalSettings').classList.remove('open'); }
+
+function toggleGuide() {
+  const el = document.getElementById('guideContent');
+  el.classList.toggle('open');
+  document.querySelector('.guide-toggle').textContent = el.classList.contains('open')
+    ? '📖 Masquer le guide'
+    : '📖 Afficher le guide de configuration (5 min)';
+}
+
+// ═══════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════
+function exportData(auto = false) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'yuki_cards_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  localStorage.setItem('yukiLastBackup', Date.now().toString());
+  if (!auto) notify('✅ Export JSON téléchargé !');
+}
+
+function exportExcel() {
+  if (typeof XLSX === 'undefined') {
+    notify('⚠️ SheetJS non chargé, réessaie dans un instant…', 'var(--gold)');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  data.periods.forEach(p => {
+    const rows = [];
+    // En-têtes
+    rows.push(['Type', 'Montant (€)', 'Description', 'Notes', 'Plateforme', 'Catégorie', 'Jeu', 'Statut']);
+
+    p.purchases.forEach(a => {
+      rows.push([
+        'Achat',
+        +(+a.amount).toFixed(2),
+        a.desc || '',
+        a.notes || '',
+        a.platform || '',
+        a.category || '',
+        a.game || '',
+        (a.status === true || a.status === 'true') ? 'Payé' : 'En attente'
+      ]);
+    });
+
+    p.sales.forEach(v => {
+      rows.push([
+        'Vente',
+        +(+v.amount).toFixed(2),
+        v.desc || '',
+        v.notes || '',
+        v.platform || '',
+        '',
+        v.game || '',
+        (v.status === true || v.status === 'true') ? 'Reçu' : 'En attente'
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:8},{wch:12},{wch:45},{wch:25},{wch:15},{wch:12},{wch:12},{wch:12}];
+
+    // Nom de l'onglet (max 31 chars, sans caractères interdits)
+    const sheetName = p.name.replace(/[\/\\?*\[\]:]/g, '-').slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  XLSX.writeFile(wb, 'yuki_cards_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  notify('✅ Export Excel téléchargé !');
+}
+
+function importData(event) {
+  const file = event.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = sanitizeData(JSON.parse(e.target.result));
+      if (!imported.periods || imported.periods.length === 0) throw new Error('Format invalide');
+      if (!confirm(`Importer ${imported.periods.length} période(s) ? Cela remplacera tes données actuelles.`)) return;
+      pushUndo();
+      data = imported;
+      currentPeriodId = data.periods[0].id;
+      save(); renderPeriodSelect(); renderTransactions();
+      notify('✅ Import réussi !');
+    } catch { notify('❌ Fichier invalide', 'var(--red)'); }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+function resetAll() {
+  if (!confirm('⚠️ Supprimer TOUTES les données ? Cette action est irréversible.')) return;
+  pushUndo();
+  data = { periods: [{ id: uid(), name: new Date().getFullYear().toString(), purchases: [], sales: [] }] };
+  currentPeriodId = data.periods[0].id;
+  save(); renderPeriodSelect(); renderTransactions();
+  notify('Données réinitialisées');
+}
+
+// ═══════════════════════════════════════════════════════
+// AUTO-BACKUP (24h)
+// ═══════════════════════════════════════════════════════
+function checkAutoBackup() {
+  const last = parseInt(localStorage.getItem('yukiLastBackup') || '0');
+  const now = Date.now();
+  const hasData = data.periods.some(p => p.purchases.length > 0 || p.sales.length > 0);
+  if (hasData && now - last > 86400000) {
+    // 3 secondes de délai pour ne pas surprendre au chargement
+    setTimeout(() => {
+      exportData(true);
+      notify('💾 Sauvegarde automatique téléchargée (24h)', 'var(--accent)');
+    }, 3000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD
+// ═══════════════════════════════════════════════════════
+function onDashPeriodChange() {
+  dashPeriodId = document.getElementById('dashPeriodSelect').value;
+  renderDashboard();
+}
+
+function renderDashboard() {
+  // Mettre à jour le sélecteur de période du dashboard
+  const dashSel = document.getElementById('dashPeriodSelect');
+  const prevVal = dashSel.value;
+  dashSel.innerHTML = '<option value="all">Toutes les périodes</option>' +
+    data.periods.map(p => `<option value="${p.id}">${escHtml(p.name)}</option>`).join('');
+  // Restaurer la sélection si la période existe encore
+  if (dashPeriodId && [...dashSel.options].some(o => o.value === dashPeriodId)) {
+    dashSel.value = dashPeriodId;
+  } else {
+    dashPeriodId = 'all';
+    dashSel.value = 'all';
+  }
+
+  // Filtrer les données selon la sélection
+  const filteredPeriods = dashPeriodId === 'all'
+    ? data.periods
+    : data.periods.filter(p => p.id === dashPeriodId);
+
+  let totalA=0, totalV=0;
+  filteredPeriods.forEach(p => {
+    totalA += p.purchases.reduce((s,x)=>s+(+x.amount),0);
+    totalV += p.sales.reduce((s,x)=>s+(+x.amount),0);
+  });
+  const res = totalV - totalA;
+
+  const scope = dashPeriodId === 'all' ? 'toutes les périodes' : filteredPeriods[0]?.name || '';
+  document.getElementById('dash-label-achats').textContent = `Total achats — ${scope}`;
+  document.getElementById('dash-label-ventes').textContent = `Total ventes — ${scope}`;
+
+  document.getElementById('dash-total-achats').textContent = fmt(totalA);
+  document.getElementById('dash-total-ventes').textContent = fmt(totalV);
+  const rEl = document.getElementById('dash-resultat');
+  rEl.textContent = (res>=0?'+':'') + fmt(res);
+  rEl.style.color = res>=0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('dash-resultat-sub').textContent = res>=0 ? '✅ Bénéfice' : '⚠️ Perte';
+
+  // Tableau récap : toujours toutes les périodes (vue globale)
+  document.getElementById('dash-periods-body').innerHTML = data.periods.map(p => {
+    const a = p.purchases.reduce((s,x)=>s+(+x.amount),0);
+    const v = p.sales.reduce((s,x)=>s+(+x.amount),0);
+    const r = v - a;
+    const isSelected = p.id === dashPeriodId;
+    return `<tr style="${isSelected ? 'background:rgba(124,92,252,.08)' : ''}">
+      <td><strong>${escHtml(p.name)}</strong></td>
+      <td style="color:var(--red)">${fmt(a)}</td>
+      <td style="color:var(--green)">${fmt(v)}</td>
+      <td style="color:${r>=0?'var(--green)':'var(--red)'};font-weight:700">${r>=0?'+':''}${fmt(r)}</td>
+      <td style="color:var(--text-muted)">${p.purchases.length+p.sales.length}</td>
+    </tr>`;
+  }).join('');
+
+  renderCharts(filteredPeriods);
+}
+
+// ═══════════════════════════════════════════════════════
+// CHARTS
+// ═══════════════════════════════════════════════════════
+Chart.defaults.color = '#8a87a0';
+Chart.defaults.borderColor = '#2e2e40';
+
+function destroyChart(id) { if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];} }
+
+// Formatteur de tooltip commun pour les graphiques en €
+const tooltipFmt = {
+  callbacks: {
+    label: ctx => ' ' + fmt(ctx.raw)
+  }
+};
+
+function renderCharts(filteredPeriods) {
+  const periods = filteredPeriods || data.periods;
+
+  // ── Résultat par période (bar) ──
+  destroyChart('chartPeriods');
+  // Si une seule période filtrée, montrer quand même toutes les périodes pour contexte
+  const chartPeriods = dashPeriodId === 'all' ? [...data.periods].reverse() : [...data.periods].reverse();
+  const labels = chartPeriods.map(p=>p.name);
+  const vals   = chartPeriods.map(p => {
+    const a = p.purchases.reduce((s,x)=>s+(+x.amount),0);
+    const v = p.sales.reduce((s,x)=>s+(+x.amount),0);
+    return v-a;
+  });
+  const barColors = chartPeriods.map((p, i) => {
+    const val = vals[i];
+    const selected = p.id === dashPeriodId;
+    if (selected) return val>=0 ? 'rgba(46,204,113,.9)' : 'rgba(231,76,60,.9)';
+    return val>=0 ? 'rgba(46,204,113,.5)' : 'rgba(231,76,60,.5)';
+  });
+  chartInstances['chartPeriods'] = new Chart(document.getElementById('chartPeriods'), {
+    type:'bar',
+    data:{ labels, datasets:[{
+      data: vals,
+      backgroundColor: barColors,
+      borderColor: chartPeriods.map((p,i) => vals[i]>=0?'#2ecc71':'#e74c3c'),
+      borderWidth:1, borderRadius:6
+    }]},
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip: { callbacks: { label: ctx => ' ' + fmt(ctx.raw) } }
+      },
+      scales:{
+        y:{ticks:{ callback: v => fmtK(v) }},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+
+  // ── Ventes par plateforme (doughnut) ──
+  destroyChart('chartPlatforms');
+  const platMap = {};
+  periods.forEach(p=>p.sales.forEach(s=>{ platMap[s.platform]=(platMap[s.platform]||0)+(+s.amount); }));
+  const pL = Object.keys(platMap).sort((a,b)=>platMap[b]-platMap[a]);
+  const pV = pL.map(k=>platMap[k]);
+  chartInstances['chartPlatforms'] = new Chart(document.getElementById('chartPlatforms'), {
+    type:'doughnut',
+    data:{ labels:pL, datasets:[{ data:pV, backgroundColor:['#7c5cfc','#2ecc71','#f0c040','#e74c3c','#3498db','#e67e22','#9b59b6','#1abc9c','#e91e63','#00bcd4','#ff5722'], borderWidth:0 }] },
+    options:{ responsive:true, plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:6}},
+      tooltip: tooltipFmt
+    }}
+  });
+
+  const COLORS_GAME = ['#f0c040','#7c5cfc','#2ecc71','#8a87a0'];
+
+  // ── Achats par jeu (doughnut) ──
+  destroyChart('chartGameAchats');
+  const gaMap = {};
+  periods.forEach(p=>p.purchases.forEach(a=>{ gaMap[a.game]=(gaMap[a.game]||0)+(+a.amount); }));
+  const gaL=Object.keys(gaMap).filter(k=>gaMap[k]>0);
+  chartInstances['chartGameAchats'] = new Chart(document.getElementById('chartGameAchats'), {
+    type:'doughnut',
+    data:{ labels:gaL, datasets:[{ data:gaL.map(k=>gaMap[k]), backgroundColor:COLORS_GAME, borderWidth:0 }] },
+    options:{ responsive:true, plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:6}},
+      tooltip: tooltipFmt
+    }}
+  });
+
+  // ── Ventes par jeu (doughnut) ──
+  destroyChart('chartGameVentes');
+  const gvMap = {};
+  periods.forEach(p=>p.sales.forEach(v=>{ gvMap[v.game]=(gvMap[v.game]||0)+(+v.amount); }));
+  const gvL=Object.keys(gvMap).filter(k=>gvMap[k]>0);
+  chartInstances['chartGameVentes'] = new Chart(document.getElementById('chartGameVentes'), {
+    type:'doughnut',
+    data:{ labels:gvL, datasets:[{ data:gvL.map(k=>gvMap[k]), backgroundColor:COLORS_GAME, borderWidth:0 }] },
+    options:{ responsive:true, plugins:{
+      legend:{position:'right',labels:{boxWidth:10,padding:6}},
+      tooltip: tooltipFmt
+    }}
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// CLICS DEHORS = FERMER MODALS
+// ═══════════════════════════════════════════════════════
+['modalOverlay','modalPeriod','modalSettings'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === e.currentTarget) {
+      if (id==='modalOverlay') closeModal();
+      else if (id==='modalPeriod') closePeriodModal();
+      else closeSettings();
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+// CLAVIER
+// ═══════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key==='Escape') { closeModal(); closePeriodModal(); closeSettings(); }
+  if (e.key==='Enter') {
+    if (document.getElementById('modalOverlay').classList.contains('open') && document.activeElement.tagName!=='TEXTAREA') saveTransaction();
+    if (document.getElementById('modalPeriod').classList.contains('open')) savePeriod();
+  }
+  // Ctrl+Z / Cmd+Z : annuler
+  if ((e.ctrlKey || e.metaKey) && e.key==='z') {
+    // Ne pas interférer si on est dans un champ de texte
+    const tag = document.activeElement.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+      e.preventDefault();
+      undo();
+    }
+  }
+});
+
+// ═══════════════════════════════════════════════════════
+// OFFLINE / ONLINE
+// ═══════════════════════════════════════════════════════
+window.addEventListener('offline', () => {
+  setSyncStatus('offline');
+  notify('📴 Hors ligne — tes modifications sont sauvegardées en local', 'var(--text-muted)');
+});
+
+window.addEventListener('online', () => {
+  notify('🟢 Connexion rétablie — synchronisation en cours…', 'var(--green)');
+  if (isFirebaseConnected) setSyncStatus('syncing');
+});
+
+// ═══════════════════════════════════════════════════════
+// FAB SPEED DIAL
+// ═══════════════════════════════════════════════════════
+let fabOpen = false;
+
+function toggleFab() {
+  fabOpen = !fabOpen;
+  document.getElementById('fabMain').classList.toggle('open', fabOpen);
+  document.getElementById('fabBackdrop').classList.toggle('open', fabOpen);
+  const opts = document.querySelectorAll('.fab-option');
+  opts.forEach((el, i) => {
+    if (fabOpen) {
+      setTimeout(() => el.classList.add('visible'), i * 70);
+    } else {
+      el.classList.remove('visible');
+    }
+  });
+}
+
+function closeFab() {
+  fabOpen = false;
+  document.getElementById('fabMain').classList.remove('open');
+  document.getElementById('fabBackdrop').classList.remove('open');
+  document.querySelectorAll('.fab-option').forEach(el => el.classList.remove('visible'));
+}
+
+function fabAdd(type) {
+  closeFab();
+  openModal(type);
+}
+
+// ═══════════════════════════════════════════════════════
+// SERVICE WORKER (mode offline)
+// ═══════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+loadLocal();
+renderTransactions();
+setSyncStatus(navigator.onLine ? 'off' : 'offline');
+initFirebaseFromStorage();
+checkAutoBackup();
+</script>
+</body>
+</html>
