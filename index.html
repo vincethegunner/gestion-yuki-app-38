@@ -418,6 +418,7 @@
   <div class="logo">Yuki <span>★</span> Cards</div>
   <nav>
     <button class="active" onclick="switchTab('transactions', this)">📋 Transactions</button>
+    <button onclick="switchTab('pending', this)">⏳ En attente</button>
     <button onclick="switchTab('dashboard', this)">📊 Dashboard</button>
   </nav>
   <div class="header-right">
@@ -531,6 +532,73 @@
     </div>
   </div>
   <button class="fab-main" id="fabMain" onclick="toggleFab()">+</button>
+</div>
+
+<!-- ═══════════════════════════════════════ EN ATTENTE ═══ -->
+<div class="tab" id="tab-pending">
+
+  <div class="summary">
+    <div class="summary-card achats">
+      <div class="label">Achats en attente</div>
+      <div class="amount" id="pendingCountAchats" style="font-size:22px">0</div>
+    </div>
+    <div class="summary-card ventes">
+      <div class="label">Ventes en attente</div>
+      <div class="amount" id="pendingCountVentes" style="font-size:22px">0</div>
+    </div>
+    <div class="summary-card resultat">
+      <div class="label">Solde attendu</div>
+      <div class="amount" id="pendingSolde">0,00 €</div>
+    </div>
+  </div>
+
+  <!-- Desktop : deux colonnes -->
+  <div class="columns">
+    <div class="column">
+      <div class="column-header">
+        <h2><span class="dot-red"></span> Achats en attente</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Période</th><th>Montant</th><th>Description</th><th>Plateforme</th><th>Jeu</th><th>Statut</th><th></th></tr></thead>
+          <tbody id="pendingBodyAchats"><tr><td colspan="7" class="empty-state">Aucun achat en attente</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="column">
+      <div class="column-header">
+        <h2><span class="dot-green"></span> Ventes en attente</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Période</th><th>Montant</th><th>Description</th><th>Plateforme</th><th>Jeu</th><th>Statut</th><th></th></tr></thead>
+          <tbody id="pendingBodyVentes"><tr><td colspan="7" class="empty-state">Aucune vente en attente</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile : sous-onglets -->
+  <div class="mobile-view" id="pendingMobileView">
+    <div class="mobile-tabs">
+      <button class="mobile-tab-btn achat active" id="pmTabAchat" onclick="switchPendingMobileTab('achat')">
+        <span class="dot-red"></span> Achats
+        <span class="mobile-tab-count" id="pmTabCountAchat">0</span>
+      </button>
+      <button class="mobile-tab-btn vente" id="pmTabVente" onclick="switchPendingMobileTab('vente')">
+        <span class="dot-green"></span> Ventes
+        <span class="mobile-tab-count" id="pmTabCountVente">0</span>
+      </button>
+    </div>
+    <div class="mobile-tab-panel active" id="pmPanelAchat">
+      <div id="pendingCardAchats"></div>
+    </div>
+    <div class="mobile-tab-panel" id="pmPanelVente">
+      <div id="pendingCardVentes"></div>
+    </div>
+    <div style="height:80px"></div>
+  </div>
+
 </div>
 
 <!-- ═══════════════════════════════════════ DASHBOARD ═══ -->
@@ -758,6 +826,7 @@ let chartInstances = {};
 let db = null;
 let isFirebaseConnected = false;
 let isDashboardVisible = false;
+let isPendingVisible = false;
 let undoStack = [];
 let dashPeriodId = 'all';
 
@@ -862,6 +931,7 @@ function undo() {
   renderPeriodSelect();
   renderTransactions();
   if (isDashboardVisible) renderDashboard();
+  if (isPendingVisible)   renderPending();
   updateUndoBtn();
   notify('↩️ Action annulée');
 }
@@ -1048,7 +1118,9 @@ function switchTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
   isDashboardVisible = (name === 'dashboard');
+  isPendingVisible   = (name === 'pending');
   if (isDashboardVisible) renderDashboard();
+  if (isPendingVisible)   renderPending();
   // Masquer le FAB quand on n'est pas sur Transactions
   const fab = document.getElementById('fabContainer');
   if (fab) fab.classList.toggle('fab-hidden', name !== 'transactions');
@@ -1263,8 +1335,9 @@ function renderTransactions() {
   renderMobileCards(p);
 }
 
-function toggleStatus(type, id) {
-  const p = currentPeriod();
+function toggleStatus(type, id, periodId) {
+  const p = periodId ? data.periods.find(x => x.id === periodId) : currentPeriod();
+  if (!p) return;
   const arr = type === 'achat' ? p.purchases : p.sales;
   const item = arr.find(x => x.id === id);
   if (!item) return;
@@ -1272,14 +1345,18 @@ function toggleStatus(type, id) {
   item.status = !item.status;
   save();
   renderTransactions();
+  if (isPendingVisible) renderPending();
 }
 
-function deleteTransaction(type, id) {
-  const p = currentPeriod();
+function deleteTransaction(type, id, periodId) {
+  const p = periodId ? data.periods.find(x => x.id === periodId) : currentPeriod();
+  if (!p) return;
   pushUndo();
   if (type==='achat') p.purchases = p.purchases.filter(x=>x.id!==id);
   else                p.sales     = p.sales.filter(x=>x.id!==id);
-  save(); renderTransactions(); notify('Transaction supprimée');
+  save(); renderTransactions();
+  if (isPendingVisible) renderPending();
+  notify('Transaction supprimée');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1358,8 +1435,9 @@ function saveTransaction() {
   else arr.push(entry);
 
   save(); closeModal(); renderTransactions();
-  // Sur mobile, basculer vers l'onglet correspondant
-  if (window.innerWidth <= 767) switchMobileTab(type === 'achat' ? 'achat' : 'vente');
+  if (isPendingVisible) renderPending();
+  // Sur mobile, basculer vers l'onglet correspondant (sauf si on édite depuis En attente)
+  if (!isPendingVisible && window.innerWidth <= 900) switchMobileTab(type === 'achat' ? 'achat' : 'vente');
   notify(editId ? '✅ Transaction mise à jour' : '✅ Transaction ajoutée');
 }
 
@@ -1490,6 +1568,135 @@ function checkAutoBackup() {
       notify('💾 Sauvegarde automatique téléchargée (24h)', 'var(--accent)');
     }, 3000);
   }
+}
+
+// ═══════════════════════════════════════════════════════
+// EN ATTENTE
+// ═══════════════════════════════════════════════════════
+let _pendingMobileTab = 'achat';
+
+function switchPendingMobileTab(tab) {
+  _pendingMobileTab = tab;
+  document.getElementById('pmTabAchat').classList.toggle('active', tab === 'achat');
+  document.getElementById('pmTabVente').classList.toggle('active', tab === 'vente');
+  document.getElementById('pmPanelAchat').classList.toggle('active', tab === 'achat');
+  document.getElementById('pmPanelVente').classList.toggle('active', tab === 'vente');
+}
+
+function editPendingTransaction(type, id, periodId) {
+  currentPeriodId = periodId;
+  editTransaction(type, id);
+}
+
+function renderPending() {
+  const pendingA = [], pendingV = [];
+  data.periods.forEach(p => {
+    (p.purchases || []).forEach(a => {
+      if (!(a.status === true || a.status === 'true'))
+        pendingA.push({ ...a, periodName: p.name, periodId: p.id });
+    });
+    (p.sales || []).forEach(v => {
+      if (!(v.status === true || v.status === 'true'))
+        pendingV.push({ ...v, periodName: p.name, periodId: p.id });
+    });
+  });
+
+  // Summary
+  document.getElementById('pendingCountAchats').textContent = pendingA.length;
+  document.getElementById('pendingCountVentes').textContent = pendingV.length;
+  const solde = pendingV.reduce((s,x)=>s+(+x.amount),0) - pendingA.reduce((s,x)=>s+(+x.amount),0);
+  const soldeEl = document.getElementById('pendingSolde');
+  soldeEl.textContent = fmt(solde);
+  soldeEl.className = 'amount ' + (solde >= 0 ? 'pos' : 'neg');
+
+  // ── Desktop tables ──
+  const rowA = item => `<tr>
+    <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${escHtml(item.periodName)}</td>
+    <td class="amount-cell achat">${fmt(item.amount)}</td>
+    <td>${escHtml(item.desc)||'—'}</td>
+    <td>${escHtml(item.platform)}</td>
+    <td>${gameTag(item.game)}</td>
+    <td><button class="status-btn pending" onclick="toggleStatus('achat','${item.id}','${item.periodId}')">⏳ En attente</button></td>
+    <td style="white-space:nowrap;display:flex;gap:4px">
+      <button class="btn btn-secondary btn-sm" onclick="editPendingTransaction('achat','${item.id}','${item.periodId}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteTransaction('achat','${item.id}','${item.periodId}')">✕</button>
+    </td>
+  </tr>`;
+
+  const rowV = item => `<tr>
+    <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${escHtml(item.periodName)}</td>
+    <td class="amount-cell vente">${fmt(item.amount)}</td>
+    <td>${escHtml(item.desc)||'—'}</td>
+    <td>${escHtml(item.platform)}</td>
+    <td>${gameTag(item.game)}</td>
+    <td><button class="status-btn pending" onclick="toggleStatus('vente','${item.id}','${item.periodId}')">⏳ En attente</button></td>
+    <td style="white-space:nowrap;display:flex;gap:4px">
+      <button class="btn btn-secondary btn-sm" onclick="editPendingTransaction('vente','${item.id}','${item.periodId}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteTransaction('vente','${item.id}','${item.periodId}')">✕</button>
+    </td>
+  </tr>`;
+
+  document.getElementById('pendingBodyAchats').innerHTML = pendingA.length
+    ? pendingA.map(rowA).join('')
+    : `<tr><td colspan="7" class="empty-state">Aucun achat en attente 🎉</td></tr>`;
+
+  document.getElementById('pendingBodyVentes').innerHTML = pendingV.length
+    ? pendingV.map(rowV).join('')
+    : `<tr><td colspan="7" class="empty-state">Aucune vente en attente 🎉</td></tr>`;
+
+  // ── Mobile cards ──
+  const pmCountA = document.getElementById('pmTabCountAchat');
+  const pmCountV = document.getElementById('pmTabCountVente');
+  if (pmCountA) pmCountA.textContent = pendingA.length;
+  if (pmCountV) pmCountV.textContent = pendingV.length;
+
+  const cardA = item => `<div class="tx-card">
+    <div class="tx-bar achat"></div>
+    <div class="tx-main">
+      <div class="tx-row1">
+        <span class="tx-amount-m achat">${fmt(item.amount)}</span>
+        <button class="status-btn pending" onclick="toggleStatus('achat','${item.id}','${item.periodId}')">⏳ En attente</button>
+      </div>
+      <div class="tx-desc-m">${escHtml(item.desc)||'—'}</div>
+      <div class="tx-meta-m">
+        ${gameTag(item.game)}
+        <span class="tx-platform-m">· ${escHtml(item.platform)}</span>
+        <span class="tx-platform-m" style="color:var(--accent-light)">· ${escHtml(item.periodName)}</span>
+      </div>
+    </div>
+    <div class="tx-actions-m">
+      <button class="tx-btn-m" onclick="editPendingTransaction('achat','${item.id}','${item.periodId}')">✏️</button>
+      <button class="tx-btn-m del" onclick="deleteTransaction('achat','${item.id}','${item.periodId}')">✕</button>
+    </div>
+  </div>`;
+
+  const cardV = item => `<div class="tx-card">
+    <div class="tx-bar vente"></div>
+    <div class="tx-main">
+      <div class="tx-row1">
+        <span class="tx-amount-m vente">${fmt(item.amount)}</span>
+        <button class="status-btn pending" onclick="toggleStatus('vente','${item.id}','${item.periodId}')">⏳ En attente</button>
+      </div>
+      <div class="tx-desc-m">${escHtml(item.desc)||'—'}</div>
+      <div class="tx-meta-m">
+        ${gameTag(item.game)}
+        <span class="tx-platform-m">· ${escHtml(item.platform)}</span>
+        <span class="tx-platform-m" style="color:var(--accent-light)">· ${escHtml(item.periodName)}</span>
+      </div>
+    </div>
+    <div class="tx-actions-m">
+      <button class="tx-btn-m" onclick="editPendingTransaction('vente','${item.id}','${item.periodId}')">✏️</button>
+      <button class="tx-btn-m del" onclick="deleteTransaction('vente','${item.id}','${item.periodId}')">✕</button>
+    </div>
+  </div>`;
+
+  document.getElementById('pendingCardAchats').innerHTML = pendingA.length
+    ? pendingA.map(cardA).join('')
+    : `<div class="empty-state" style="padding:24px 0">Aucun achat en attente 🎉</div>`;
+
+  document.getElementById('pendingCardVentes').innerHTML = pendingV.length
+    ? pendingV.map(cardV).join('')
+    : `<div class="empty-state" style="padding:24px 0">Aucune vente en attente 🎉</div>`;
 }
 
 // ═══════════════════════════════════════════════════════
