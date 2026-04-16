@@ -3,7 +3,7 @@
 // Permet une utilisation complète hors ligne.
 // Firebase gère lui-même la file d'attente des modifications offline.
 
-const CACHE_NAME = 'yuki-cards-v6';
+const CACHE_NAME = 'yuki-cards-v7';
 
 const ASSETS = [
   './',
@@ -25,7 +25,7 @@ self.addEventListener('install', event => {
   );
 });
 
-// Activation : suppression des anciens caches
+// Activation : suppression des anciens caches + notification aux onglets ouverts
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
@@ -33,6 +33,8 @@ self.addEventListener('activate', event => {
         keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
       ))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then(clients => clients.forEach(c => c.postMessage({ type: 'SW_UPDATED' })))
   );
 });
 

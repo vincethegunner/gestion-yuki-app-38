@@ -518,6 +518,18 @@
 
 </div>
 
+<!-- ══ BANNIÈRE MISE À JOUR ══ -->
+<div id="updateBanner" style="display:none;position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+  background:var(--accent);color:#fff;padding:10px 16px;border-radius:12px;
+  display:none;align-items:center;gap:12px;z-index:500;
+  box-shadow:0 4px 20px rgba(124,92,252,.5);white-space:nowrap;">
+  <span style="font-size:13px;font-weight:600">🔄 Mise à jour disponible</span>
+  <button onclick="window.location.reload()" style="background:rgba(255,255,255,.25);border:none;color:#fff;
+    padding:6px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">
+    Recharger
+  </button>
+</div>
+
 <!-- ══ FAB SPEED DIAL ══ -->
 <div class="fab-backdrop" id="fabBackdrop" onclick="closeFab()"></div>
 <div class="fab-container" id="fabContainer">
@@ -781,7 +793,15 @@
         <li>Ouvre cette URL sur ton téléphone. Sur <strong>iPhone</strong> : bouton Partager → "Sur l'écran d'accueil". Sur <strong>Android</strong> : menu ⋮ → "Ajouter à l'écran d'accueil".</li>
         <li>L'app apparaît comme une vraie application sur ton écran d'accueil. Les données se synchronisent automatiquement via Firebase. ✅</li>
       </ol>
-      <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">⚠️ Après chaque mise à jour du fichier HTML, redépose-le sur Netlify pour que l'URL reste à jour.</p>
+      <p style="margin-top:8px;font-size:12px;color:var(--text-muted)">⚠️ Après chaque mise à jour du fichier HTML, redépose-le sur GitHub pour que l'URL reste à jour.</p>
+    </div>
+
+    <!-- SECTION 2b : MISES À JOUR -->
+    <div class="settings-section">
+      <h4>🔄 Mises à jour de l'application</h4>
+      <p>Vérifie si une nouvelle version est disponible. Si c'est le cas, un bandeau apparaîtra en bas de l'écran — clique sur "Recharger" pour l'installer sans perdre tes données ni ta connexion Firebase.</p>
+      <button class="btn btn-secondary" onclick="checkForUpdates()">🔄 Vérifier les mises à jour</button>
+      <p style="margin-top:10px;font-size:11px;color:var(--text-muted)" id="updateCheckStatus"></p>
     </div>
 
     <!-- SECTION 3 : DONNÉES -->
@@ -1945,7 +1965,37 @@ function fabAdd(type) {
 // ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('./sw.js').then(reg => {
+      // Écouter les messages du SW (nouvelle version détectée)
+      navigator.serviceWorker.addEventListener('message', e => {
+        if (e.data && e.data.type === 'SW_UPDATED') showUpdateBanner();
+      });
+    }).catch(() => {});
+  });
+}
+
+function showUpdateBanner() {
+  const b = document.getElementById('updateBanner');
+  if (b) b.style.display = 'flex';
+}
+
+function checkForUpdates() {
+  if (!('serviceWorker' in navigator)) {
+    document.getElementById('updateCheckStatus').textContent = '⚠️ Service Worker non supporté sur ce navigateur.';
+    return;
+  }
+  const status = document.getElementById('updateCheckStatus');
+  status.textContent = '⏳ Vérification en cours…';
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (!reg) { status.textContent = '⚠️ Aucun service worker actif.'; return; }
+    reg.update().then(() => {
+      if (reg.waiting) {
+        showUpdateBanner();
+        status.textContent = '✅ Mise à jour disponible ! Clique sur "Recharger" ci-dessous.';
+      } else {
+        status.textContent = '✅ Tu as déjà la dernière version.';
+      }
+    });
   });
 }
 
