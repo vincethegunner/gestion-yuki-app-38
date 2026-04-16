@@ -270,7 +270,30 @@
       .columns { display: none; }
       .mobile-view { display: block; }
       body { overflow-x: hidden; }
-      main { overflow-x: hidden; }
+      main { overflow-x: hidden; padding-bottom: 72px; }
+      /* Cacher la nav du header sur mobile */
+      nav { display: none; }
+    }
+
+    /* ── BOTTOM NAV (mobile uniquement) ── */
+    .bottom-nav {
+      display: none;
+    }
+    @media (max-width: 900px) {
+      .bottom-nav {
+        display: flex; position: fixed; bottom: 0; left: 0; right: 0;
+        background: var(--surface); border-top: 1px solid var(--border);
+        z-index: 120; height: 58px;
+      }
+      .bottom-nav button {
+        flex: 1; background: none; border: none; color: var(--text-muted);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 3px; cursor: pointer; font-size: 10px; font-weight: 600;
+        letter-spacing: .3px; transition: color .15s; padding: 0;
+      }
+      .bottom-nav button .bn-icon { font-size: 20px; line-height: 1; }
+      .bottom-nav button.active { color: var(--accent-light); }
+      .bottom-nav button.active .bn-icon { filter: drop-shadow(0 0 4px rgba(160,132,253,.5)); }
     }
 
     /* ── MOBILE SUB-TABS (Achats / Ventes) ── */
@@ -387,7 +410,7 @@
     .fab-backdrop.open { display: block; }
 
     @media (max-width: 900px) {
-      .fab-container { display: flex; }
+      .fab-container { display: flex; bottom: 74px; }
     }
 
     /* ── RESPONSIVE ── */
@@ -518,8 +541,21 @@
 
 </div>
 
+<!-- ══ BOTTOM NAV (mobile) ══ -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="active" id="bn-transactions" onclick="switchTab('transactions', this); syncBottomNav('transactions')">
+    <span class="bn-icon">📋</span>Transactions
+  </button>
+  <button id="bn-pending" onclick="switchTab('pending', this); syncBottomNav('pending')">
+    <span class="bn-icon">⏳</span>En attente
+  </button>
+  <button id="bn-dashboard" onclick="switchTab('dashboard', this); syncBottomNav('dashboard')">
+    <span class="bn-icon">📊</span>Dashboard
+  </button>
+</nav>
+
 <!-- ══ BANNIÈRE MISE À JOUR ══ -->
-<div id="updateBanner" style="display:none;position:fixed;bottom:90px;left:50%;transform:translateX(-50%);
+<div id="updateBanner" style="display:none;position:fixed;bottom:130px;left:50%;transform:translateX(-50%);
   background:var(--accent);color:#fff;padding:10px 16px;border-radius:12px;
   display:none;align-items:center;gap:12px;z-index:500;
   box-shadow:0 4px 20px rgba(124,92,252,.5);white-space:nowrap;">
@@ -1132,15 +1168,22 @@ function disconnectFirebase() {
 // ═══════════════════════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════════════════════
+function syncBottomNav(name) {
+  document.querySelectorAll('.bottom-nav button').forEach(b => b.classList.remove('active'));
+  const bn = document.getElementById('bn-' + name);
+  if (bn) bn.classList.add('active');
+}
+
 function switchTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('header nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
   isDashboardVisible = (name === 'dashboard');
   isPendingVisible   = (name === 'pending');
   if (isDashboardVisible) renderDashboard();
   if (isPendingVisible)   renderPending();
+  syncBottomNav(name);
   // Masquer le FAB quand on n'est pas sur Transactions
   const fab = document.getElementById('fabContainer');
   if (fab) fab.classList.toggle('fab-hidden', name !== 'transactions');
