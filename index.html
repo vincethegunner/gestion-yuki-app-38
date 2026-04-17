@@ -2009,11 +2009,26 @@ function fabAdd(type) {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
-      // Écouter les messages du SW (nouvelle version détectée)
-      navigator.serviceWorker.addEventListener('message', e => {
-        if (e.data && e.data.type === 'SW_UPDATED') showUpdateBanner();
+
+      // Vérifier immédiatement si une mise à jour existe
+      reg.update();
+
+      // Nouveau SW en cours d'installation → surveiller son état
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing;
+        if (!newSW) return;
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'activated') showUpdateBanner();
+        });
       });
+
     }).catch(() => {});
+
+    // Quand un nouveau SW prend le contrôle → proposer le rechargement
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!reloading) { reloading = true; showUpdateBanner(); }
+    });
   });
 }
 
@@ -2024,20 +2039,23 @@ function showUpdateBanner() {
 
 function checkForUpdates() {
   if (!('serviceWorker' in navigator)) {
-    document.getElementById('updateCheckStatus').textContent = '⚠️ Service Worker non supporté sur ce navigateur.';
+    document.getElementById('updateCheckStatus').textContent = '⚠️ Service Worker non supporté.';
     return;
   }
   const status = document.getElementById('updateCheckStatus');
   status.textContent = '⏳ Vérification en cours…';
   navigator.serviceWorker.getRegistration().then(reg => {
     if (!reg) { status.textContent = '⚠️ Aucun service worker actif.'; return; }
+    reg.addEventListener('updatefound', () => {
+      status.textContent = '✅ Mise à jour trouvée ! Elle s\'installera automatiquement.';
+    });
     reg.update().then(() => {
-      if (reg.waiting) {
-        showUpdateBanner();
-        status.textContent = '✅ Mise à jour disponible ! Clique sur "Recharger" ci-dessous.';
-      } else {
-        status.textContent = '✅ Tu as déjà la dernière version.';
-      }
+      // Si aucun updatefound après 3s, on est déjà à jour
+      setTimeout(() => {
+        if (status.textContent.includes('Vérification')) {
+          status.textContent = '✅ Tu as déjà la dernière version.';
+        }
+      }, 3000);
     });
   });
 }
